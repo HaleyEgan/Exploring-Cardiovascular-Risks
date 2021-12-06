@@ -1,0 +1,410 @@
+---
+title: "Diabetes Dataset MLR - 2"
+author: "Haley Egan"
+date: "12/6/2021"
+output: html_document
+---
+```{r}
+#clean data 
+
+library(faraway)
+library(caret)
+
+df <- diabetes
+
+?diabetes
+summary(df)
+head(df)
+
+df <- subset(df, select = -c(id,bp.2s,bp.2d))
+
+df <- df                                    
+df$glyhb[is.na(df$glyhb)] <- median(df$glyhb, na.rm = TRUE)  
+
+df <- df                                    
+df$chol[is.na(df$chol)] <- median(df$chol, na.rm = TRUE)  
+
+df <- df                                    
+df$hdl[is.na(df$hdl)] <- median(df$hdl, na.rm = TRUE)  
+
+df <- df                                    
+df$ratio[is.na(df$ratio)] <- median(df$ratio, na.rm = TRUE)  
+
+df <- df                                    
+df$height[is.na(df$height)] <- median(df$height, na.rm = TRUE)  
+
+df <- df                                    
+df$weight[is.na(df$weight)] <- median(df$weight, na.rm = TRUE)  
+
+df <- df                                    
+df$bp.1s[is.na(df$bp.1s)] <- median(df$bp.1s, na.rm = TRUE)  
+
+df <- df                                    
+df$bp.1d[is.na(df$bp.1d)] <- median(df$bp.1d, na.rm = TRUE)  
+
+df <- df                                    
+df$waist[is.na(df$waist)] <- median(df$waist, na.rm = TRUE)  
+
+df <- df                                    
+df$hip[is.na(df$hip)] <- median(df$hip, na.rm = TRUE)  
+
+df <- df                                    
+df$time.ppn[is.na(df$time.ppn)] <- median(df$time.ppn, na.rm = TRUE)  
+
+df$frame <- df$frame %>% replace_na('medium')
+
+df[sapply(df, is.factor)] <- data.matrix(df[sapply(df, is.factor)])
+
+head(df)
+#summary(df)
+```
+
+```{r}
+library(tidyverse)
+
+#install.packages("GGally")
+library(GGally)
+```
+
+```{r}
+#make data frame of subset of data with all quantitative variables
+df <- df[,c('glyhb', 'chol', 'stab.glu', 'hdl', 'ratio', 'age', 'height', 'weight', 'frame', 'bp.1s', 'bp.1d', 'waist', 'hip', 'time.ppn')]
+head(df)
+```
+
+```{r}
+#fit multiple linear regression model, glyhb as response
+result <- lm(glyhb~., data=df)
+summary(result)
+```
+
+
+#Interpretation:
+
+Looking at the t test for all the coefficients, the only coefficients with significant p-values are stabilized glucose (stab.glu), age in years (age), and postprandial time (in minutes) when labs were drawn (time.ppn). All other 11 predictors have insignificant p-values. 
+
+The t tests do not inform us if we can drop all of these predictors simultaneously from the model, so we need to conduct a partial F test.
+
+#Hypothesis:
+
+H0 : B1 = B3 = B4 = B6 = B7 = B8 = B9 = B10 = B11 = B12 = B13 = 0 
+Ha : at least one of the coefficients in H0 is not 0.
+
+The null hypothesis supports going with the reduced model by dropping the insignificant predictors, whereas the alternative hypothesis supports the full model by not dropping any predictors.
+
+#see if reduced model can be used 
+#fit the reduced model, and then use the anova() function to compare the reduced model with the full model
+```{r}
+#fit reduce model with just stab.glu 
+reduced <- lm(glyhb~stab.glu+age+time.ppn, data=df)
+```
+
+```{r}
+##perform the partial F test to see if we can drop the predictors
+anova(reduced,result)
+```
+#????????/
+The F statistic from this test is 1.8599, with a p-value of 0.04928. We fail to reject the null hypothesis. There is little evidence for supporting the full model. We go with the reduced model over the full model.
+
+#Check for multicollinearity 
+```{r}
+#pairwise correlation between predictors 
+cor(df[,c( 'chol', 'stab.glu', 'hdl', 'ratio', 'age', 'height', 'weight', 'frame', 'bp.1s', 'bp.1d', 'waist', 'hip', 'time.ppn')])
+```
+
+#Interpretation:
+
+There is a moderately high correlation of -0.69 between hdl and ratio. There are also very strong correlations between waist and weight, and hip and waist, which does make sense, but is not correlated to glyhb. 
+
+#Find the variance inflation factors (VIFs) for the model
+```{r}
+##vif function found in faraway package
+library(faraway)
+```
+
+```{r}
+##VIFs for the regression model with 4 predictors
+vif(result)
+```
+
+#Interpretation:
+
+None of the VIF's exceed 10, which means there are no significantly high VIFs, suggesting there is not a high correlation between predictors. 
+
+
+#Perform all possible regressions (nbest=1)
+
+```{r}
+library(leaps)
+```
+
+```{r}
+allreg <- regsubsets(glyhb ~., data=df, nbest=1)
+summary(allreg)
+```
+
+##perform all possible regressions (nbest=2)
+```{r}
+allreg2 <- regsubsets(glyhb ~., data=df, nbest=2)
+summary(allreg2)
+```
+
+#Interpretation:
+
+Based on R2, among all possible 1-predictor models, the model that is best has stab.glu as the
+one predictor. The second best 1-predictor model has age as the one predictor.
+
+##find model with best according to different criteria
+```{r}
+which.max(summary(allreg2)$adjr2)
+
+which.min(summary(allreg2)$cp)
+
+which.min(summary(allreg2)$bic)
+```
+
+#Interpretation:
+
+From allreg2, model 9 has the best adjusted R2 and Mallow’s Cp, model 7 has the best BIC.
+
+##find coefficients and predictors of model with best adj r2, cp, bic
+```{r}
+coef(allreg2, which.max(summary(allreg2)$adjr2))
+
+coef(allreg2, which.min(summary(allreg2)$cp))
+
+coef(allreg2, which.min(summary(allreg2)$bic))
+```
+
+#Interpretation:
+
+We have 2 candidate models. One with chol, stab.glu, ratio, age, and time.ppn. The other with stab.glu, ratio, age, and time.ppn. 
+
+#Forward selection, backward elimination, stepwise reg
+
+```{r}
+##intercept only model
+regnull <- lm(glyhb~1, data=df)
+
+##model with all predictors
+regfull <- lm(glyhb~., data=df)
+```
+
+```{r}
+#Forward selection
+step(regnull, scope=list(lower=regnull, upper=regfull), direction="forward")
+```
+
+#Interpretation:
+
+The resulting model recommendation of Forward Selection is a model with stab.glu, chol, age, time.ppn, and ratio. 
+
+```{r}
+#Backward elimination 
+step(regfull, scope=list(lower=regnull, upper=regfull), direction="backward")
+```
+
+#Interpretation:
+
+The resulting model recommendation from Backward Elimination is chol, stab.glu, ratio, age, and time.ppn, which is the same result as from Forward Selection. 
+
+```{r}
+#Stepwise Regression
+step(regnull, scope=list(lower=regnull, upper=regfull), direction="both")
+```
+
+#Interpretation:
+
+The suggested model as a result of Stepwise Regression is stab.glu, chol, age, time.ppn, and ratio, which is the same as both Backward Elimination and Forward Selection.
+
+
+#Check for outliers and residuals 
+```{r}
+##residuals, e_i
+res<-result$residuals 
+
+## find standardized residuals, d_i
+standard.res<-res/summary(result)$sigma
+
+##find studentized residuals, r_i
+student.res<-rstandard(result) 
+
+##externally studentized residuals, t_i
+ext.student.res<-rstudent(result) 
+
+res.frame<-data.frame(res,standard.res,student.res,ext.student.res)
+```
+
+```{r}
+par(mfrow=c(1,3))
+plot(result$fitted.values,standard.res,main="Standardized Residuals", ylim=c(-4.5,4.5))
+plot(result$fitted.values,student.res,main="Studentized Residuals", ylim=c(-4.5,4.5))
+plot(result$fitted.values,ext.student.res,main="Externally  Studentized Residuals", ylim=c(-4.5,4.5))
+```
+
+#Use the t distribution and the Bonferroni procedure to find a cut off value for outlier detection using externally studentized residuals. If |ti| > t1− α2n,n−1−p, observation i is deemed an outlier.
+
+```{r}
+##critical value using Bonferroni procedure
+n<-dim(df)[1]
+p<-3
+crit<-qt(1-0.05/(2*n), n-1-p)
+
+##identify outliers
+ext.student.res[abs(ext.student.res)>crit]
+```
+
+#Interpretation:
+
+Observations 63, 195, 334, and 363 may be outliers. 
+
+```{r}
+#look at columns of interest - with differences between tests 
+res.frame[63,]
+res.frame[195,]
+res.frame[334,]
+res.frame[363,]
+```
+
+
+Leverages, hii, are used to identify how far observation i is from the centroid of the predictor space. If hii >2pn, then observation i is deemed to have high leverage and is outlying in the predictor space. High leverage observations are data points that are most likely to be influential. 
+
+```{r}
+#High leverage observations are data points that are most likely to be influential. To identify high leverage observations:
+##leverages
+lev<-lm.influence(result)$hat 
+
+##identify high leverage points
+lev[lev>2*p/n]
+```
+
+#Interpretation:
+
+Several observations have high leverages. 195 is the only observation with a high leverage that was identified previously as an outlier. 
+
+
+#Cook’s distance, Di, can be interpreted as the squared Euclidean distance that the vector of fitted values moves when observation i is removed from the regression model. A cutoff rule for an influential observation is Di > F0.5,p.n−p.
+```{r}
+##cooks distance
+COOKS<-cooks.distance(result)
+COOKS[COOKS>qf(0.5,p,n-p)]
+```
+
+#Interpretation:
+
+No observations has been identified as influential. 
+
+#DFFITSi measures how much the fitted value of observation i changes when it is removed from the regression model. Observation i is influential if |DFFITSi| > 2√p/n.
+```{r}
+##dffits
+DFFITS<-dffits(result)
+DFFITS[abs(DFFITS)>2*sqrt(p/n)]
+```
+#Interpretation:
+
+32 observations are influential based on DFFITSi
+
+```{r}
+##dfbetas
+DFBETAS<-dfbetas(result)
+abs(DFBETAS)>2/sqrt(n)
+```
+
+```{r}
+##for beta0
+DFBETAS[abs(DFBETAS[,1])>2/sqrt(n),1]
+```
+
+```{r}
+##for beta1
+DFBETAS[abs(DFBETAS[,2])>2/sqrt(n),2]
+```
+
+```{r}
+##for beta2
+DFBETAS[abs(DFBETAS[,3])>2/sqrt(n),3]
+```
+
+
+
+
+#Select columns based off reduced model for multiple linear regression
+#Reduced model based of model diagnostics 
+```{r}
+#make a new dataframe of subset of data with only quantitative variables
+reducedDF <- df[,c('glyhb','chol','stab.glu', 'ratio', 'age', 'time.ppn')]
+head(reducedDF)
+```
+
+```{r}
+#generate pairs plot
+ggpairs(reducedDF)
+```
+
+```{r}
+#scatterplot matrix - good for multiple quantitative variables. creates all scatterplots for all quantitative variables
+pairs(reducedDF, lower.panel = NULL)
+```
+
+```{r}
+#pairwise correlation between all pairs of correlation between variables
+round(cor(reducedDF),3)
+```
+
+#Interpretation:
+
+There is a strong correlation between Glycosolated Hemoglobin (glyhb) and Stabilized Glucose (stab.glu), at 0.75. There is not a very strong correlation between the remaining variables.
+
+```{r}
+#fit multiple linear regression model, Fertility as response
+result <- lm(glyhb~., data=reducedDF)
+summary(result)
+```
+
+Estimated Regression Equation: y = 0.4162 +  0.0034(stab.glu) + 0.1121(ratio) + 0.0147(age) + 0.0006(time.ppn) 
+
+#Check the regression assumptions with residual plot, ACF plot of the residuals, and a QQ plot of the residuals
+```{r}
+#create residual plot
+yhat<-result$fitted.values
+res<-result$residuals
+reducedDF<-data.frame(reducedDF,yhat,res)
+
+ggplot(reducedDF, aes(x=yhat,y=res))+
+  geom_point()+
+  geom_hline(yintercept=0, color="red")+
+  labs(x="Fitted y", y="Residuals", title="Residual Plot")
+```
+
+#Interpretation:
+
+The error terms are clustered on the far left of the residual plot. Therefore there is not a constant variance and assumption 3 is not met. Assumption 2 is met, because the error terms appear to have a mean of 0. 
+
+
+```{r}
+#ACF plot of residuals
+acf(res, main="ACF Plot of Residuals with ystar")
+```
+
+#Interpretation:
+
+Assumption 4 is met in this ACF plot, because it shows that the error terms are uncorrelated and independent. There are no vertical lines outside of the horizontal blue zone. 
+
+```{r}
+#QQ plot of residuals
+qqnorm(res)
+qqline(res, col="red")
+```
+
+#Interpretation:
+
+Assumption 5 is largely met, indicating that the error terms follow normal distribution. The error terms fall along the red line, except for at the far right of the plot. 
+
+
+
+
+
+
+
+
+
