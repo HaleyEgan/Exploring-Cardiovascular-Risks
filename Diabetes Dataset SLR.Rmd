@@ -129,7 +129,7 @@ Zero does not fall within the box cox plot lines, so a log transformation is not
 
 ```{r}
 ##transform y and then regress ystar on x
-ystar<-(SLRdf$glyhb)^-0.8
+ystar<-(SLRdf$glyhb)^(-0.8)
 SLRdf<-data.frame(SLRdf,ystar)
 result.ystar<-lm(ystar~stab.glu, data=SLRdf)
 
@@ -142,11 +142,21 @@ SLRdf<-data.frame(SLRdf,yhat2,res2)
 ```
 
 ```{r}
-##residual plot with ystar
-ggplot(SLRdf, aes(x=yhat2,y=res2))+
+##Fit a regression model
+result2<-lm(ystar~res2, data=SLRdf)
+
+##store fitted y & residuals
+yhat<-result2$fitted.values
+res<-result2$residuals
+
+##add to data frame
+SLRdf<-data.frame(SLRdf,yhat,res)
+
+##residual plot
+ggplot(SLRdf, aes(x=yhat,y=res))+
   geom_point()+
   geom_hline(yintercept=0, color="red")+
-  labs(x="Fitted y", y="Residuals", title="Residual Plot with ystar")
+  labs(x="y*", y="Residuals", title="Y* Residual Plot")
 ```
 
 ```{r}
@@ -157,31 +167,37 @@ boxcox(result.ystar)
 
 The transformation did improve the residual plot. However, there is still clustering on the left side of the plot. Further transformation is needed.
 
+
 ```{r}
-##transform y and then regress ystar on x
-ystar<-(SLRdf$glyhb)^0.8
-SLRdf<-data.frame(SLRdf,ystar)
-result.ystar<-lm(ystar~stab.glu, data=SLRdf)
+##transform x and then regress y* on x*
+xstar<-sqrt((SLRdf$stab.glu)^1)
+SLRdf<-data.frame(SLRdf,xstar)
+result2.xstar<-lm(ystar~stab.glu, data=SLRdf)
 
 ##store fitted y & residuals
-yhat2<-result.ystar$fitted.values
-res2<-result.ystar$residuals
+xhat2<-result2.xstar$fitted.values
+res2<-result2.xstar$residuals
 
 ##add to data frame
 SLRdf<-data.frame(SLRdf,yhat2,res2)
 ```
+#Create a scatterplot of y∗ against x*. 
+```{r}
+##scatterplot, and overlay regression line
+ggplot(SLRdf, aes(x=xstar, y=ystar))+
+  geom_point()+
+  geom_smooth(method = "lm", se=FALSE)+ #fit regression equation line to plot 
+  labs(x="x*", y="y*", title="Scatterplot of y* against x*")
+```
 
 ```{r}
 ##residual plot with ystar
-ggplot(SLRdf, aes(x=yhat2,y=res2))+
+ggplot(SLRdf, aes(x=xstar,y=res2))+
   geom_point()+
   geom_hline(yintercept=0, color="red")+
-  labs(x="Fitted y", y="Residuals", title="Residual Plot with ystar")
+  labs(x="Fitted y", y="Residuals", title="X* Residual Plot")
 ```
 
-```{r}
-boxcox(result.ystar)
-```
 
 #Interpretation:
 

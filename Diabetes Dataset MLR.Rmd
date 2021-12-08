@@ -1,0 +1,233 @@
+---
+title: "Diabetes Dataset MLR"
+author: "Haley Egan"
+date: "12/6/2021"
+output: html_document
+---
+```{r}
+#clean data 
+
+library(faraway)
+library(caret)
+
+df <- diabetes
+
+?diabetes
+summary(df)
+head(df)
+
+df <- subset(df, select = -c(id,bp.2s,bp.2d))
+
+df <- df                                    
+df$glyhb[is.na(df$glyhb)] <- median(df$glyhb, na.rm = TRUE)  
+
+df <- df                                    
+df$chol[is.na(df$chol)] <- median(df$chol, na.rm = TRUE)  
+
+df <- df                                    
+df$hdl[is.na(df$hdl)] <- median(df$hdl, na.rm = TRUE)  
+
+df <- df                                    
+df$ratio[is.na(df$ratio)] <- median(df$ratio, na.rm = TRUE)  
+
+df <- df                                    
+df$height[is.na(df$height)] <- median(df$height, na.rm = TRUE)  
+
+df <- df                                    
+df$weight[is.na(df$weight)] <- median(df$weight, na.rm = TRUE)  
+
+df <- df                                    
+df$bp.1s[is.na(df$bp.1s)] <- median(df$bp.1s, na.rm = TRUE)  
+
+df <- df                                    
+df$bp.1d[is.na(df$bp.1d)] <- median(df$bp.1d, na.rm = TRUE)  
+
+df <- df                                    
+df$waist[is.na(df$waist)] <- median(df$waist, na.rm = TRUE)  
+
+df <- df                                    
+df$hip[is.na(df$hip)] <- median(df$hip, na.rm = TRUE)  
+
+df <- df                                    
+df$time.ppn[is.na(df$time.ppn)] <- median(df$time.ppn, na.rm = TRUE)  
+
+df$frame <- df$frame %>% replace_na('medium')
+
+head(df)
+#summary(df)
+```
+
+```{r}
+library(tidyverse)
+
+#install.packages("GGally")
+library(GGally)
+```
+
+```{r}
+#make a reduced dataframe of subset of data with only applicable quantitative variables
+df <- df[,c('glyhb', 'chol', 'stab.glu', 'hdl', 'ratio', 'age', 'weight', 'time.ppn')]
+head(df)
+```
+
+```{r}
+#fit multiple linear regression model, glyhb as response
+result <- lm(glyhb~., data=df)
+summary(result)
+```
+
+Estimated Regression Equation: y = 0.2338 + 0.0035(chol) + 0.0285(stab.glu) - 0.0001(hdl) + 0.1044(ratio) + 0.0150(age) + 0.0011(weight) + 0.0006(time.ppn)
+
+#Interpretation:
+
+Looking at the t test for the coefficients, total cholesterol (chol), high density lipoprotein (hdl), cholesterol/hdl ratio (ratio), and weight in punds (weight), are all insignificant. 
+
+Stabilized glucose (stab.glu), age in years (age), and postprandial time (in minutes) when labs were drawn (time.ppn) are all significant. 
+
+We know that the t tests do not inform us if we can drop all of these predictors simultaneously from the model, so we need to conduct a partial F test.
+
+#Hypothesis:
+
+H0 : β1 = β3 = β4 = β6 = 0,
+Ha : at least one of the coefficients in H0 is not 0.
+
+The null hypothesis supports going with the reduced model by dropping chol, hdl, ratio, and weight, whereas the alternative hypothesis supports the full model by not dropping chol, hdl, ratio, and weight.
+
+#see if reduced model can be used 
+#fit the reduced model, and then use the anova() function to compare the reduced model with the full model
+```{r}
+#fit reduce model with just stab.glu 
+reduced <- lm(glyhb~stab.glu, data=df)
+```
+
+```{r}
+##perform the partial F test to see if we can drop the predictors
+anova(reduced,result)
+```
+#??????
+The F statistic from this test is 6.1801, with a p-value of 3.267e-06. We can reject the null hypothesis. There is evidence in supporting the full model. We go with the full model over the reduced model. 
+
+#Check for multicollinearity 
+```{r}
+#pairwise correlation between predictors 
+cor(df[,c('chol','stab.glu','hdl','ratio','age','weight','time.ppn')])
+```
+
+#Interpretation:
+
+There is a moderately high correlation of -0.69 between hdl and ratio, but not between any other predictors. 
+
+#Find the variance inflation factors (VIFs) for the model
+```{r}
+##vif function found in faraway package
+library(faraway)
+```
+
+```{r}
+##VIFs for the regression model with 4 predictors
+vif(result)
+```
+
+#Interpretation:
+
+None of the VIF's exceed 10, which means there are no significantly high VIFs, suggesting there is not a high correlation between predictors. 
+
+
+
+#Select columns based off reduced model for multiple linear regression
+```{r}
+#make a new dataframe of subset of data with only quantitative variables
+MLRdf <- df[,c('glyhb','stab.glu', 'age', 'time.ppn')]
+head(MLRdf)
+```
+
+```{r}
+#generate pairs plot
+ggpairs(MLRdf)
+```
+
+```{r}
+#scatterplot matrix - good for multiple quantitative variables. creates all scatterplots for all quantitative variables
+pairs(MLRdf, lower.panel = NULL)
+```
+
+```{r}
+#pairwise correlation between all pairs of correlation between variables
+round(cor(MLRdf),3)
+```
+
+#Interpretation:
+
+There is a strong correlation between Glycosolated Hemoglobin (glyhb) and Stabilized Glucose (stab.glu), at 0.75. There is not a very strong correlation between the remaining variables.
+
+```{r}
+#fit multiple linear regression model, Fertility as response
+result <- lm(glyhb~., data=MLRdf)
+summary(result)
+```
+
+Estimated Regression Equation: y = 1.3781 +  0.0299(stab.glu) + 0.0175(age) + 0.0005(time.ppn) 
+
+#Check the regression assumptions with residual plot, ACF plot of the residuals, and a QQ plot of the residuals
+```{r}
+#create residual plot
+yhat<-result$fitted.values
+res<-result$residuals
+MLRdf<-data.frame(MLRdf,yhat,res)
+
+ggplot(MLRdf, aes(x=yhat,y=res))+
+  geom_point()+
+  geom_hline(yintercept=0, color="red")+
+  labs(x="Fitted y", y="Residuals", title="Residual Plot")
+```
+
+#Interpretation:
+
+The error terms are clustered on the far left of the residual plot. Therefore there is not a constant variance and assumption 3 is not met. Assumption 2 is met, because the error terms appear to have a mean of 0. 
+
+
+```{r}
+#ACF plot of residuals
+acf(res, main="ACF Plot of Residuals with ystar")
+```
+
+#Interpretation:
+
+Assumption 4 is met in this ACF plot, because it shows that the error terms are uncorrelated and independent. There are no vertical lines outside of the horizontal blue zone. 
+
+```{r}
+#QQ plot of residuals
+qqnorm(res)
+qqline(res, col="red")
+```
+
+#Interpretation:
+
+Assumption 5 is largely met, indicating that the error terms follow normal distribution. The error terms fall along the red line, except for at the far right of the plot. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

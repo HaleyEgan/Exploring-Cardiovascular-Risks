@@ -96,15 +96,15 @@ The null hypothesis supports going with the reduced model by dropping the insign
 #fit the reduced model, and then use the anova() function to compare the reduced model with the full model
 ```{r}
 #fit reduce model with just stab.glu 
-reduced <- lm(glyhb~stab.glu+age+time.ppn, data=df)
+reduced <- lm(glyhb~stab.glu+age+time.ppn+chol+ratio, data=df)
 ```
 
 ```{r}
 ##perform the partial F test to see if we can drop the predictors
 anova(reduced,result)
 ```
-#????????/
-The F statistic from this test is 1.8599, with a p-value of 0.04928. We fail to reject the null hypothesis. There is little evidence for supporting the full model. We go with the reduced model over the full model.
+
+Based on the Partial F Test, the F statistic is 0.2998, and the p-value is 0.9658. Due to the high p-value, we fail to reject the null hypothesis. There is little evidence for supporting the full model. Therefore, the reduced model can be used over the full model. 
 
 #Check for multicollinearity 
 ```{r}
@@ -356,7 +356,7 @@ round(cor(reducedDF),3)
 There is a strong correlation between Glycosolated Hemoglobin (glyhb) and Stabilized Glucose (stab.glu), at 0.75. There is not a very strong correlation between the remaining variables.
 
 ```{r}
-#fit multiple linear regression model, Fertility as response
+#fit multiple linear regression model,
 result <- lm(glyhb~., data=reducedDF)
 summary(result)
 ```
@@ -380,10 +380,74 @@ ggplot(reducedDF, aes(x=yhat,y=res))+
 
 The error terms are clustered on the far left of the residual plot. Therefore there is not a constant variance and assumption 3 is not met. Assumption 2 is met, because the error terms appear to have a mean of 0. 
 
+```{r}
+#box cox plot 
+library(MASS) ##to use boxcox function
+boxcox(result)
+```
+
+```{r}
+##transform y and then regress ystar on x
+ystar<-(reducedDF$glyhb)^(1)
+reducedDF<-data.frame(reducedDF,ystar)
+result.ystar<-lm(ystar~stab.glu, data=reducedDF)
+
+##store fitted y & residuals
+yhat2<-result.ystar$fitted.values
+res2<-result.ystar$residuals
+
+##add to data frame
+reducedDF<-data.frame(reducedDF,yhat2,res2)
+```
+
+```{r}
+##Fit a regression model
+result2<-lm(ystar~res2, data=reducedDF)
+
+##store fitted y & residuals
+yhat<-result2$fitted.values
+res<-result2$residuals
+
+##add to data frame
+reducedDF<-data.frame(reducedDF,yhat,res)
+
+##residual plot
+ggplot(reducedDF, aes(x=yhat,y=res))+
+  geom_point()+
+  geom_hline(yintercept=0, color="red")+
+  labs(x="y*", y="Residuals", title="Y* Residual Plot")
+```
+
+```{r}
+boxcox(result.ystar)
+```
+
+```{r}
+##transform x and then regress y* on x*
+xstar<-(reducedDF$stab.glu)^-1
+reducedDF<-data.frame(reducedDF,xstar)
+result2.xstar<-lm(ystar~stab.glu, data=reducedDF)
+
+##store fitted y & residuals
+xhat2<-result2.xstar$fitted.values
+res2<-result2.xstar$residuals
+
+##add to data frame
+reducedDF<-data.frame(reducedDF,yhat2,res2)
+```
+
+```{r}
+##residual plot with ystar
+ggplot(reducedDF, aes(x=xstar,y=res2))+
+  geom_point()+
+  geom_hline(yintercept=0, color="red")+
+  labs(x="Fitted y", y="Residuals", title="X* Residual Plot")
+```
+
 
 ```{r}
 #ACF plot of residuals
-acf(res, main="ACF Plot of Residuals with ystar")
+acf(res2, main="ACF Plot of Residuals with ystar")
 ```
 
 #Interpretation:
@@ -392,8 +456,8 @@ Assumption 4 is met in this ACF plot, because it shows that the error terms are 
 
 ```{r}
 #QQ plot of residuals
-qqnorm(res)
-qqline(res, col="red")
+qqnorm(res2)
+qqline(res2, col="red")
 ```
 
 #Interpretation:
@@ -401,9 +465,12 @@ qqline(res, col="red")
 Assumption 5 is largely met, indicating that the error terms follow normal distribution. The error terms fall along the red line, except for at the far right of the plot. 
 
 
+```{r}
+#ANOVA table
 
-
-
+anova.tab<-anova(result)
+anova.tab
+```
 
 
 
